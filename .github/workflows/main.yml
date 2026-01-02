@@ -4,7 +4,7 @@ name: Zola build and deploy to GH pages
 jobs:
   preview:
     runs-on: ubuntu-latest
-    if: github.ref != 'refs/heads/master'
+    if: github.ref != 'refs/heads/main'
     steps:
       - name: checkout
         uses: actions/checkout@v4
