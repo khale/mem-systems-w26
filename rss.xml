@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+        <title>CS&#x2F;ECE 4&#x2F;599</title>
+        <link>https%3A//khale.github.io/mem-systems-w26/</link>
+        <description></description>
+        <generator>Zola</generator>
+        <language>en</language>
+        <atom:link href="https%3A//khale.github.io/mem-systems-w26/rss.xml" rel="self" type="application/rss+xml"/>
+        <icon>https%3A//khale.github.io/mem-systems-w26/img/favicon.ico</icon>
+        <lastBuildDate>Mon, 05 Jan 2026 00:00:00 +0000</lastBuildDate>
+        
+            <item>
+                <title>Welcome to CS&#x2F;ECE 4&#x2F;599!</title>
+                <pubDate>Mon, 05 Jan 2026 00:00:00 +0000</pubDate>
+                <link>https%3A//khale.github.io/mem-systems-w26/blog/welcome/</link>
+                <guid>https%3A//khale.github.io/mem-systems-w26/blog/welcome/</guid>
+                <description>&lt;p&gt;I’m excited to teach this research course on memory systems at OSU! We’ll be covering a lot of ground,
+focusing on systems software research, but touching areas in memory technologies, fault tolerance, distributed systems, storage, hardware accelerators, and much more.&lt;&#x2F;p&gt;
+&lt;p&gt;We’ll use this course blog for paper discussions and project reports throughout the quarter.&lt;&#x2F;p&gt;
+</description>
+            </item>
+        
+    </channel>
+</rss>
