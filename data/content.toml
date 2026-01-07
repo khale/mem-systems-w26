@@ -10,7 +10,7 @@ readings = ["reading"]
 
 [[classes]]
 lesson = 2
-#title = "Overview of the Memory System"
+title = "Memory Hardware Basics"
 leader = "Kyle"
 readings = ["drepper"]
 
@@ -20,19 +20,19 @@ readings = ["drepper"]
 # Basics: DRAM/SRAM/MC
 [[classes]]
 lesson = 3
-title = "Hardware Internals - SRAM and DRAM"
+title = "Hardware: HBM and Chiplets"
 leader = "Lab 1: TBD"
 readings = ["lee-tiered"]
 
 [[classes]]
 lesson = 4
-title = "Memory Controllers and HBM"
+title = "Hardware: Memory Controllers"
 leader = "Lab 2: TBD"
 readings = ["mc2"]
 
 [[classes]]
 lesson = 5
-title = "Caches"
+title = "Hardware: Caches"
 leader = "Lab 3: TBD"
 readings = ["rrip"]
 
