@@ -10,7 +10,6 @@ readings = ["reading"]
 
 [[classes]]
 lesson = 2
-title = "Memory Hardware Basics"
 leader = "Kyle"
 readings = ["drepper"]
 

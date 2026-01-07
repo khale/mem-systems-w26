@@ -4,7 +4,7 @@ link = "http://ccr.sigcomm.org/online/files/p83-keshavA.pdf"
 details = "S. Keshav. SIGCOMM CCR"
 
 [lee-tiered]
-name = "Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture (Sections 1 & 2)"
+name = "Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture"
 link = "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6522354&tag=1"
 details = "Lee et al., HPCA '13"
 
@@ -138,7 +138,7 @@ link = "https://people.inf.ethz.ch/omutlu/pub/SimplePIM_pact23.pdf"
 details = "Chen et al. PACT '23"
 
 [drepper]
-name = "What Every Programmer Should Know About Memory"
+name = "What Every Programmer Should Know About Memory (Sec 2)"
 link = "https://people.freebsd.org/~lstewart/articles/cpumemory.pdf"
 details = "Ulrich Drepper, 2007"
 
