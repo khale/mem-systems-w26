@@ -26,7 +26,7 @@ readings = ["lee-tiered"]
 [[classes]]
 lesson = 4
 title = "Hardware: Memory Controllers"
-leader = "Lab 2: TBD"
+leader = "Lab 2: Derek Werbowy & Kabir Vidyarthi"
 readings = ["mc2"]
 
 [[classes]]
