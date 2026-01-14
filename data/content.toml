@@ -32,7 +32,7 @@ readings = ["mc2"]
 [[classes]]
 lesson = 5
 title = "Hardware: Caches"
-leader = "Lab 3: TBD"
+leader = "Lab 3: Thomas Pinon"
 readings = ["rrip"]
 
 [[classes]]
