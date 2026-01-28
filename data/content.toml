@@ -53,6 +53,7 @@ lesson = 7
 #title = "NUMA"
 leader = "Lab 1: Allen Lee"
 readings = ["nuksm"]
+paper_slides = "https://canvas.oregonstate.edu/courses/2028992/files/116257872?module_item_id=26500637"
 
 [[classes]]
 lesson = 8
