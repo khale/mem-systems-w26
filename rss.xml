@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+        <title>CS&#x2F;ECE 4&#x2F;599</title>
+        <link>https%3A//khale.github.io/mem-systems-w26/</link>
+        <description></description>
+        <generator>Zola</generator>
+        <language>en</language>
+        <atom:link href="https%3A//khale.github.io/mem-systems-w26/rss.xml" rel="self" type="application/rss+xml"/>
+        <icon>https%3A//khale.github.io/mem-systems-w26/img/favicon.ico</icon>
+        <lastBuildDate>Tue, 27 Jan 2026 00:00:00 +0000</lastBuildDate>
+        
+            <item>
+                <title>High Performance Cache Replacement Using Re-Reference Interval Prediction (RRIP)</title>
+                <pubDate>Tue, 27 Jan 2026 00:00:00 +0000</pubDate>
+                <link>https%3A//khale.github.io/mem-systems-w26/blog/high-performance-cache-replacement-using-rrip/</link>
+                <guid>https%3A//khale.github.io/mem-systems-w26/blog/high-performance-cache-replacement-using-rrip/</guid>
+                <description>&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h2&gt;
+&lt;p&gt;Cache replacement policies play a central role in determining the effectiveness of modern cache hierarchies. Despite decades of architectural evolution, the dominant policy remains Least Recently Used (LRU), largely due to its intuitive appeal and historical simplicity. However, LRU operates off the assumption that recent access implies near-future reuse. While often true, this assumption fails for a wide range of contemporary workloads, including streaming applications, large working sets, and multiprogrammed environments where interference dominates cache behavior.&lt;&#x2F;p&gt;
+&lt;p&gt;The paper &lt;em&gt;High Performance Cache Replacement Using Re-reference Interval Prediction (RRIP)&lt;&#x2F;em&gt; introduces RRIP as an alternative replacment policy to LRU. Rather than estimating reuse indirectly through recency, RRIP explicitly predicts how far in the future a cache block will be referenced again. This alternative prediction method enables replacement decisions that more closely approximate optimal behavior, while still remaining implementable in real hardware.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;background-and-motivation&quot;&gt;Background and Motivation&lt;&#x2F;h2&gt;
+&lt;h3 id=&quot;limitations-of-lru&quot;&gt;Limitations of LRU&lt;&#x2F;h3&gt;
+&lt;p&gt;LRU assumes that recently accessed data will be reused in the near future. This assumption breaks down in several common scenarios:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Streaming workloads&lt;&#x2F;strong&gt;, where data is accessed once and never reused&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Large working sets&lt;&#x2F;strong&gt; that exceed cache capacity, leading to thrashing&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Mixed access patterns&lt;&#x2F;strong&gt;, where frequently reused data structures coexist with large scans&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;In such cases, LRU allows non-temporal data to evict frequently reused cache blocks, significantly degrading performance.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;key-concepts-and-terminology&quot;&gt;Key Concepts and Terminology&lt;&#x2F;h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Re-reference Interval Prediction (RRIP):&lt;&#x2F;strong&gt; A cache replacement framework that predicts how long it will be before a cache block is reused, rather than relying solely on recency.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Re-reference Prediction Value (RRPV):&lt;&#x2F;strong&gt; A small per-cache-line counter that encodes the predicted distance to the next reuse. Larger values indicate farther reuse.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Static RRIP (SRRIP):&lt;&#x2F;strong&gt; A policy that inserts new cache lines with a long predicted re-reference interval, providing strong resistance to cache pollution from streaming accesses.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Bimodal RRIP (BRRIP):&lt;&#x2F;strong&gt; A variant that usually inserts cache lines with a very long re-reference interval but occasionally inserts them as likely-to-be-reused, improving performance under thrashing workloads.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Dynamic RRIP (DRRIP):&lt;&#x2F;strong&gt; A hybrid policy that dynamically selects between using SRRIP or BRIPP using Set Dueling.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Set Dueling:&lt;&#x2F;strong&gt; A technique that dedicates a small number of cache sets to competing policies and uses their miss behavior to select the most effective policy at runtime.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;overview-of-the-rrip-mechanism&quot;&gt;Overview of the RRIP Mechanism&lt;&#x2F;h2&gt;
+&lt;p&gt;RRIP associates each cache block with an RRPV counter that represents its predicted reuse distance. Conceptually:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;RRPV = 0&lt;&#x2F;strong&gt; indicates an expected near-immediate reuse&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;RRPV = Max&lt;&#x2F;strong&gt; indicates reuse far in the future or no reuse at all&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h3 id=&quot;replacement-policy&quot;&gt;Replacement Policy&lt;&#x2F;h3&gt;
+&lt;p&gt;On a cache miss:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;The cache searches for a block with the maximum RRPV.&lt;&#x2F;li&gt;
+&lt;li&gt;If no such block exists, all RRPVs are incremented until at least one reaches the maximum value.&lt;&#x2F;li&gt;
+&lt;li&gt;A block with the maximum RRPV is selected for eviction.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;On a cache hit:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The accessed block’s RRPV is decremented, indicating high reuse potential.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h3 id=&quot;scan-resistance-and-adaptivity&quot;&gt;Scan Resistance and Adaptivity&lt;&#x2F;h3&gt;
+&lt;p&gt;SRRIP inserts new cache blocks with long predicted reuse distances, preventing streaming data from displacing frequently reused blocks. DRRIP extends this approach by dynamically choosing between SRRIP and BRRIP based on runtime behavior. Using set dueling, DRRIP adapts to workload characteristics without software intervention.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;evaluation-and-results&quot;&gt;Evaluation and Results&lt;&#x2F;h2&gt;
+&lt;p&gt;The authors evaluate RRIP across a wide range of single-core and multi-core workloads. Key findings include:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Performance Improvements&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;SRRIP achieves approximately 4–7% performance improvement over LRU&lt;&#x2F;li&gt;
+&lt;li&gt;DRRIP achieves approximately 9–10% improvement over LRU&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Hardware Overhead&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Only 2 bits per cache block are required&lt;&#x2F;li&gt;
+&lt;li&gt;Lower complexity than LRU implementations&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Robustness&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Strong resistance to cache pollution from scans&lt;&#x2F;li&gt;
+&lt;li&gt;Stable performance across diverse application behaviors&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Multicore Benefits&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Reduced inter-core cache interference&lt;&#x2F;li&gt;
+&lt;li&gt;Improved overall throughput and fairness&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;These results demonstrate that RRIP provides consistent gains with minimal additional hardware cost.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;strengths-and-limitations&quot;&gt;Strengths and Limitations&lt;&#x2F;h2&gt;
+&lt;h3 id=&quot;strengths&quot;&gt;Strengths&lt;&#x2F;h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Conceptual Clarity:&lt;&#x2F;strong&gt; Explicitly modeling reuse distance aligns more closely with optimal replacement behavior than recency-based policies.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Low Implementation Cost:&lt;&#x2F;strong&gt; RRIP requires minimal state and simpler logic than LRU.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Adaptability:&lt;&#x2F;strong&gt; DRRIP dynamically adjusts to workload behavior without programmer or operating system involvement.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h3 id=&quot;limitations&quot;&gt;Limitations&lt;&#x2F;h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Predictive Approximation:&lt;&#x2F;strong&gt; RRPVs provide only a coarse approximation of reuse distance, especially with small counters, and irregular access patterns may still lead to poor predictions.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Evaluation Scope:&lt;&#x2F;strong&gt; Some highly pointer-intensive or unpredictable workloads are not extensively explored.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;class-discussion&quot;&gt;Class Discussion&lt;&#x2F;h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Where is the data going when it is not recently used? Is there demotion between levels of cache?:&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Yes, when you kick something from the L1, it goes to the L2. Caches are generally inclusive.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Why is this not implemented in higher levels of cache?:&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Latency constraints and hardware overhead. More computational logic for finding near and far values.. Not much gain in efficiency.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;What eviction policy is used in L1?:&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;NRU is used. Only one bit and very fast.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;How often is L3 accessed in workloads such as gaming? Are the performance gains worth it?:&quot;&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Depends on the workload. The paper showed that performance increased in all benchmarks expect photoshop. Performance increases across the board seem to show L3 cache access. L3 is designed to minimize cache misses, so additional hardware is fine because latency is not an issue.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;What hardware was used to test this?&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;CNP-based x86 simulator, as well as games, and productivity apps.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;The RRIP framework illustrates that cache replacement policies can be both simple and highly effective when they directly model reuse behavior. By predicting re-reference intervals instead of relying on recency, RRIP consistently outperforms traditional LRU while maintaining low hardware overhead. The success of DRRIP further demonstrates the importance of adaptive policies in handling modern, diverse workloads.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;references&quot;&gt;References&lt;&#x2F;h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Jaleel, A., et al. &lt;em&gt;High Performance Cache Replacement Using Re-reference Interval Prediction&lt;&#x2F;em&gt; (https:&#x2F;&#x2F;dl.acm.org&#x2F;doi&#x2F;10.1145&#x2F;1815961.1815971)&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;generative-ai-disclosure&quot;&gt;Generative AI Disclosure&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;ChatGPT was used to generate a Markdown file template and check spelling and grammar.&lt;&#x2F;li&gt;
+&lt;li&gt;Generative AI can be useful tools for tasks such as summarizing or drafting, however, they may give innacurate information confidently and should always have generated information validated&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+</description>
+            </item>
+        
+            <item>
+                <title>(MC)^2: Lazy MemCopy at the Memory Controller</title>
+                <pubDate>Wed, 21 Jan 2026 00:00:00 +0000</pubDate>
+                <link>https%3A//khale.github.io/mem-systems-w26/blog/mc-2-lazy-memcopy-at-the-memory-controller/</link>
+                <guid>https%3A//khale.github.io/mem-systems-w26/blog/mc-2-lazy-memcopy-at-the-memory-controller/</guid>
+                <description>&lt;h1 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h1&gt;
+&lt;p&gt;Modern software systems rely heavily on the process of memory copying to provide isolation, simplify synchronization, and support common operations such as serialization, I&#x2F;O buffering, and snapshot creation. Although the system of memcpy appears simple, it holds many operations that impose a significant performance cost; A large portion of the CPU cycles are spent stalled on cache misses and DRAM accesses, in many cases only a small portion of the copied data is ever actually used. As the processor speeds continued to outpace the improvements in memory latency, the inefficiency of eager, byte-by-byte copying becomes a major bottleneck to the entire system.&lt;&#x2F;p&gt;
+&lt;p&gt;The (MC)² Lazy Memcopy style architecture addresses some of these problems. This is done by rethinking where and when the data movement occurs. Instead of immediately copying data at the CPU, (MC)² shifts the copy management into the memory controller and delays the actual data transfer until it is actually needed. By tracking copy intent and resolving it only on demand, (MC)² aims to eliminate redundant memory traffic, reduce cache pollution, and substantially lower the stall time that is associated with the traditional memory copy operation.&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;overview&quot;&gt;Overview&lt;&#x2F;h1&gt;
+&lt;p&gt;(MC)² reduces used to reduced the overall high cost of memory copying by moving the copy management into the memory controller. This is done by making lazy copies. Instead of constantly copying data with memcpy, the system tracks copy intentions using a Copy Tracking table (CTT) and delays the actual movement of bytes, until the data is actually needed for an operation. By only making copies when the destination is read or the source is overwritten. With (MC)² it avoids unnecessary memory traffic and CPU stalls, which are a major bottleneck in modern systems due to cache misses and the long DRAM latencies.&lt;&#x2F;p&gt;
+&lt;p&gt;The use of a memory controller is extended with the hardware structures, including the CTT and a bounce pending queue (BPQ), to transparently intercept copy requests and route memory accesses to the correct location both physically and digitally. This allows for the destination reads to be serviced directly from the source buffer and source writes to trigger on-demand copying. All of this happens while preserving memory consistency and cache coherence. By operating below the cache hierarchy and working on the physical addresses, (MC)² provides fine-grained, cacheline-level copying virtualization, without requiring the operating system or application level changes.&lt;&#x2F;p&gt;
+&lt;p&gt;(MC)² further improves performance by handling chains of copies, merging adjacent regions, and performing background copy completion when tracking resources become saturated. Evaluations that were done across microbenchmarks and real applications such as Protobuf, MongoDB, MVCC databases, and fork-based snapshots showed significant reductions in copy-induced stalls and memory bandwidth consumption, yielding substantial speedups small and partially used buffers that dominate real world workloads.&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;hardware-function-and-changes&quot;&gt;Hardware Function and changes&lt;&#x2F;h1&gt;
+&lt;p&gt;CPU pushes the copy management into the memory controller for MCLAZY.  So a SRAM based CTT (copy tracking table) and a small queue called BPQ (bounce pending queue) were added.
+CTT functions:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;merge adjacent tracked regions&lt;&#x2F;li&gt;
+&lt;li&gt;avoid chains like A -&amp;gt;B and B-&amp;gt;C (rewrite to A-&amp;gt;C)&lt;&#x2F;li&gt;
+&lt;li&gt;prevent two rules from overlapping the same dest region&lt;&#x2F;li&gt;
+&lt;li&gt;and free CTT space by completing copies in the background
+BPQ function:
+It just hold the src writes operation until the actual copy to the dest finishes before the writing of the src can proceed.
+Steps of the hardware:&lt;&#x2F;li&gt;
+&lt;li&gt;CPU sends copy instruction&lt;&#x2F;li&gt;
+&lt;li&gt;Cache does src write back so ram has latest src snapshot and invalidates dst so that in later reading dest is not found in cache and it is forced to go to CTT&lt;&#x2F;li&gt;
+&lt;li&gt;MC records the mapping in the CTT
+Later access:
+&lt;ul&gt;
+&lt;li&gt;Src read - proceed normally&lt;&#x2F;li&gt;
+&lt;li&gt;Dest write – proceed normally as it is basically updating the dest  and the mapping in CTT is not even required&lt;&#x2F;li&gt;
+&lt;li&gt;Read from src- not the actual lazy copy needs to go through consulting the CTT. Once done removing the CTT mapping&lt;&#x2F;li&gt;
+&lt;li&gt;Write to src – go to Bpq and let lazy copy of the dest finish first, then proceed.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;software-function-and-changes&quot;&gt;Software  Function and Changes:&lt;&#x2F;h1&gt;
+&lt;p&gt;(MC)² made some changes to the software side too. It introduced a clean interface ( a wrapper) for lazy copying  “memcpy(dest, src, size)”. Programs use it arbitrary sizes and alignments. The paper states the hardware mechanism is most efficient when it can track is 64 bytes chunks or cacheline sized. The software therefore provides the wrapper that preservers norma copy  but internally chooses between&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;normal copy for small or awkward pieces&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Lazy copying fir aligned bulk
+Steps for the new instruction :&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Do normal copy if too small (smaller than 64 bytes)&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;If dest is not cacheline aligned, compute how many bytes required to make dest aligned , normal copy exactly those bytes, advance src and dest and reduce size accordingly. The remaining region can be handled in cacheline chunks&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Do the MCLAZY of the bulk region, these are multiples of cacheline sizes and less than a page&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;If something is left , do normal copy.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Finally do a fence such that the lazy copy maintains proper order of  memory operations&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Example , suppose the program calls memcpy_lazy(dest=…03, src=…00, size=200) and the cacheline is 64 B.&lt;&#x2F;p&gt;
+&lt;p&gt;The wrapper will:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Copy  61 bytes normally (to align dest)&lt;&#x2F;li&gt;
+&lt;li&gt;Use MCLAZY for the next 128 bytes&lt;&#x2F;li&gt;
+&lt;li&gt;Copy the last 11 bytes normally&lt;&#x2F;li&gt;
+&lt;li&gt;Fence
+There is one last function introduced called MCFREE(buffer, size) which can be sometimes used by software to tell the hardware to drop mappings of dest-&amp;gt;src.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;results&quot;&gt;Results:&lt;&#x2F;h1&gt;
+&lt;p&gt;In performance evaluations, (MC)² lazy memcpy outperforms many of the existing systems. The only other system that got close to it in terms of latency is their zIO. For uncached source buffers, the lazy copy system achieves up to 11 times lower latency than the conventional memcpy for medium and large copy sizes over 1 KB, where DRAM is access is the dominate use of time for execution. When the source is already in the cache, the traditional memcpy can be slightly faster for smaller file sizes due to the addition of the memory controller logic in the (MC)² lazy memcpy system. For a different type of access pattern, where the it reads copied data&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;key-results&quot;&gt;Key Results:&lt;&#x2F;h1&gt;
+&lt;p&gt;Key results:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;11x lower latency for medium and large copy sizes (≥ 1 KB)&lt;&#x2F;li&gt;
+&lt;li&gt;43% speedup for Protobuf serialization&lt;&#x2F;li&gt;
+&lt;li&gt;Mongo DB I&#x2F;O stack: ~15.5% throughput improvement&lt;&#x2F;li&gt;
+&lt;li&gt;MVCC databases: up to 78% speedup for read-modify-write workloads on small files&lt;&#x2F;li&gt;
+&lt;li&gt;Pipes and streaming I&#x2F;O: 15 – 30% higher throughput by eliminating redundant kernel buffer copies&lt;&#x2F;li&gt;
+&lt;li&gt;CTT reaches 50% occupancy prevents bandwidth saturation while avoiding CPU stalls.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;class-discussion&quot;&gt;Class Discussion&lt;&#x2F;h1&gt;
+&lt;p&gt;The system presents a valuable solution but at what cost?&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The system has many advantages but how much does it cost to manufacture and what are the downsides to this system&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Why hasn’t this been adapted yet?&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The lazy copy system is relatively new to the discussion so it might be used in future CPU’s and memory control systems that have yet to be released as this paper came out in 2024&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Is this a hardware vulnerability?&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;As of right now there is nothing to suggest that it is but when future research comes out it might prove that it is a vulnerability. As it could possibly have problems that aren’t discussed in the paper that could cause memory loss or memory overload&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;What is the actual cost?&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;This is a complete unknown it could be just a slight raise in price or a drastic increase in price due to a new way to make the memory systems requiring new processes to manufacture.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h1&gt;
+&lt;p&gt;In summary, (MC)² lazy memcpy shows that a large portion of the time the system uses is wasted waiting for copying data that is never fully used, with CPU’s stalled waiting on memory rather than doing other useful work. By moving this into the memory controller and making those lazy copies, the system then only has to track copy intent and only moves the data when the data is needed. Hardware support through the copy tracking table and bounce pending Queue enables this to happen in a transparent faction.&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;references&quot;&gt;References:&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;Paper: https:&#x2F;&#x2F;dl.acm.org&#x2F;doi&#x2F;10.1109&#x2F;ISCA59077.2024.00084&lt;&#x2F;li&gt;
+&lt;li&gt;Slides: https:&#x2F;&#x2F;docs.google.com&#x2F;presentation&#x2F;d&#x2F;1LHGMNmEvYYec-WrcbDhAI9wVA5Bh5tclDccBAJohub0&#x2F;edit?usp=sharing&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;generative-ai-disclosure&quot;&gt;Generative AI Disclosure&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;ChatCPT was used just to pull notes into 1 file and check grammer&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Generative AI can be useful tools for tasks such as summarizing or drafting, however, they may give innacurate information confidently and should always have generated information validated&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+</description>
+            </item>
+        
+            <item>
+                <title>Tiered-Latency DRAM</title>
+                <pubDate>Wed, 21 Jan 2026 00:00:00 +0000</pubDate>
+                <link>https%3A//khale.github.io/mem-systems-w26/blog/tiered-latency-dram/</link>
+                <guid>https%3A//khale.github.io/mem-systems-w26/blog/tiered-latency-dram/</guid>
+                <description>&lt;h1 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h1&gt;
+&lt;p&gt;The &quot;Memory Wall&quot;, the widening gap between processor speed and memory latency, remains a critical bottleneck in modern computing. While DRAM capacity and cost-per-bit have improved drastically over the life of modern computing (with the exception of memory shortages), latency has remained relatively stagnant. This post summarizes the paper, Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture from a Carnegie Mellon University paper, which proposes an architectural solution to this problem. The authors introduce a method to achieve the speed of specialized low-latency memory (like RLDRAM) with the cost profile of commodity DRAM, utilizing a clever circuit-level modification: the isolation transistor.&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;background&quot;&gt;Background&lt;&#x2F;h1&gt;
+&lt;p&gt;The main innovation of TL-DRAM adresses the fundamental physical trade-oﬀ of bitline length in DRAM design. There are two main factors that bitline length affects.&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;Commodity DRAM (Cost-Optimized): Manufacturers connect many cells (e.g., 512) to a single long bitline. This amortizes the large area cost of the sense amplifier over many bits, keeping cost-per-bit low. However, long wires have high parasitic capacitance, making them slow to charge and sense.&lt;&#x2F;li&gt;
+&lt;li&gt;Low-Latency DRAM (Latency-Optimized): Manufacturers use short bitlines, connecting less cells (e.g., 32 cells). These have low electrical load and are fast. However, they require many more sense amplifiers for the same capacity, increasing area overhead by 30-80% and driving up cost.
+Historically, the industry has optimized for cost, leaving us with cheap, high-latency memory.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;h1 id=&quot;keywords&quot;&gt;Keywords&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Tiered-Latency DRAM (TL-DRAM):&lt;&#x2F;strong&gt; A low-cost architecture that splits a standard long bitline into two segments using an isolation transistor, enabling specialized low-latency access for the &quot;near&quot; segment while maintaining the high density of commodity DRAM.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Isolation Transistor:&lt;&#x2F;strong&gt; A circuit component inserted into the bitline that acts as a resistive bridge to electrically decouple the segments, allowing the sense amplifier to detect data significantly faster on the &quot;near&quot; segment and moderately faster on the &quot;far&quot; segment.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Bitline Segmentation:&lt;&#x2F;strong&gt; The architectural technique of dividing the wire connecting DRAM cells to the sense amplifier into a short, low-capacitance section and a longer section to reduce the electrical load during activation.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Benefit-Based Caching (BBC):&lt;&#x2F;strong&gt; A hardware management policy that dynamically promotes rows to the fast &quot;near&quot; segment by calculating a score based on the total number of cycles saved by avoiding the slower &quot;far&quot; segment latencies.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Row-to-Column Delay (tRCD):&lt;&#x2F;strong&gt; The timing constraint representing the interval required for the sense amplifier to drive the bitline to a readable threshold voltage, which TL-DRAM reduces from 15ns to 8.2ns for the near segment and 12.1ns for the far segment.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;summary-of-the-paper&quot;&gt;Summary of the Paper&lt;&#x2F;h1&gt;
+&lt;p&gt;The core contribution of this work is splitting a standard long bitline into two segments using a single isolation transistor. This creates a tiered architecture within a single subarray:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;The Near Segment (Fast): This is a short section (e.g., 32 rows) directly connected to the sense amplifier. When accessing these rows, the isolation transistor is turned off. The sense amp sees very low capacitance, resulting in significantly reduced latency (tRCD drops from 15ns to 8.2ns).&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;The Far Segment (Tiered): This contains the remaining rows (e.g., 480 more). When accessed, the isolation transistor is turned on.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;The &quot;Resistor&quot; Effect: Counter-intuitively, the Far Segment also sees a reduction in sensing latency (tRCD drops to 12.1ns). The isolation transistor acts as a resistor, electrically decoupling the two segments. This allows the sense amplifier to drive the near side to the sensing threshold quickly, detecting the data from the far side faster than in a standard long bitline.&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Trade-off: While sensing is fast, restoring the full charge to the far cell (tRAS) takes longer because current must trickle through the resistive transistor. Thus, the total cycle time (tRC) for the far segment increases (from 52.5ns to 65.8ns).&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Management Mechanisms: To mitigate the slower cycle time of the far segment, the authors propose using the Near Segment as a hardware-managed cache. They introduce Benefit-Based Caching (BBC), a policy that calculates a &quot;benefit score&quot; based on how many cycles are saved by keeping a row in the near segment versus the far segment. The paper also outlines a method to copy data between segments internally without using the external I&#x2F;O bus, saving bandwidth.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;key-results&quot;&gt;Key Results:&lt;&#x2F;h1&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Performance:&lt;&#x2F;strong&gt; 12.8% average improvement (Weighted Speedup).&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Power:&lt;&#x2F;strong&gt; ~26% reduction in power consumption (due to driving lower capacitance on near accesses).&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Area:&lt;&#x2F;strong&gt; Only 3.15% area overhead (compared to &amp;gt;140% for SRAM caching).&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;h1 id=&quot;strengths-and-weaknesses&quot;&gt;Strengths and Weaknesses&lt;&#x2F;h1&gt;
+&lt;h2 id=&quot;strengths&quot;&gt;Strengths:&lt;&#x2F;h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Physics-Aware Innovation: This design exploits the resistive nature of the isolation transistor to improve sensing time even for the far segment, rather than just accepting a penalty.&lt;&#x2F;li&gt;
+&lt;li&gt;Cost Effectiveness: The proposed solution fits into the current manufacturing paradigm with minimal die-size penalty (3.15%), addressing the economic constraints that usually kill low-latency proposals.&lt;&#x2F;li&gt;
+&lt;li&gt;Energy Efficiency: By reducing the effective capacitance for frequently accessed data, it attacks the physical source of power consumption in DRAM.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;h2 id=&quot;weaknesses&quot;&gt;Weaknesses:&lt;&#x2F;h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Manufacturing Inertia: While &quot;low cost,&quot; adding a transistor to the bitline still requires changing a highly optimized process. The industry is risk-averse regarding process changes.&lt;&#x2F;li&gt;
+&lt;li&gt;Controller Complexity: The Benefit-Based Caching logic must reside in the memory controller, increasing its complexity and cost.&lt;&#x2F;li&gt;
+&lt;li&gt;Workload Dependence: The performance gains rely heavily on data locality. If a workload constantly misses the &quot;Near Segment&quot; cache, performance degrades due to the Far Segment&#x27;s high tRC.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;h1 id=&quot;class-discussion&quot;&gt;Class Discussion&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Is It Worth It?:&lt;&#x2F;strong&gt; There was significant skepticism regarding whether a 12% performance gain justifies the upfront manufacturing cost. The consensus was that industry inertia (&quot;if it ain&#x27;t broke, don&#x27;t fix it&quot;) is a massive barrier, even for a 3% area change. In addition there was skepticism in the effectiveness of the design with the lack of adoption from manufacturers.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Use Case Limitations (AI vs. Consumer):&lt;&#x2F;strong&gt; The discussion noted that TL-DRAM is likely ineffective for modern AI and server workloads which often stream data with low locality. The consensus was that this technology is better suited for consumer electronics (e.g., CPUs with low memory) rather than high-end servers.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Power Analysis Critique:&lt;&#x2F;strong&gt; While the paper claims ~26-28% power savings, the class noted this analysis might be optimistic. A &quot;worst-case scenario&quot; analysis (where the far segment is heavily accessed) is missing and necessary to prove viability for battery-powered consumer devices.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Transistor as a &quot;Bridge&quot;:&lt;&#x2F;strong&gt; The discussion emphasized the mental model of the isolation transistor acting as a &quot;bridge&quot; or &quot;resistor.&quot; This conceptualization helps explain why the near segment charges so quickly and why the far segment can still be sensed quickly despite the extra load.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Bandwidth vs. Latency:&lt;&#x2F;strong&gt; A broader point raised was whether latency is actually the primary problem to solve. For many modern applications, data bandwidth is the bottleneck, and improving latency by 10% might not result in tangible user-facing improvements.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;sources&quot;&gt;Sources:&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;ieeexplore.ieee.org&#x2F;stamp&#x2F;stamp.jsp?arnumber=6522354&amp;amp;tag=1&quot;&gt;Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h1 id=&quot;generative-ai-disclosure&quot;&gt;Generative AI Disclosure&lt;&#x2F;h1&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;Links to tools used: &lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;notebooklm.google.com&#x2F;&quot;&gt;NotebookLM&lt;&#x2F;a&gt;, &lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;gemini.google.com&#x2F;&quot;&gt;Gemini 3 Pro&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Notebook LM was used to compile sources and summarize them, as well as get clarifying information about the paper&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Gemini 3 Pro was used for drafting an outline template for this blogpost as well as give clearer definitions for the keywords&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;Generative AI can be useful tools for tasks such as summarizing or drafting, however, they may give innacurate information confidently and should always have generated information validated&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+</description>
+            </item>
+        
+            <item>
+                <title>Welcome to CS&#x2F;ECE 4&#x2F;599!</title>
+                <pubDate>Mon, 05 Jan 2026 00:00:00 +0000</pubDate>
+                <link>https%3A//khale.github.io/mem-systems-w26/blog/welcome/</link>
+                <guid>https%3A//khale.github.io/mem-systems-w26/blog/welcome/</guid>
+                <description>&lt;p&gt;I&#x27;m excited to teach this research course on memory systems at OSU! We&#x27;ll be covering a lot of ground,
+focusing on systems software research, but touching areas in memory technologies, fault tolerance, distributed systems, storage, hardware accelerators, and much more.&lt;&#x2F;p&gt;
+&lt;p&gt;We&#x27;ll use this course blog for paper discussions and project reports throughout the quarter.&lt;&#x2F;p&gt;
+</description>
+            </item>
+        
+    </channel>
+</rss>
