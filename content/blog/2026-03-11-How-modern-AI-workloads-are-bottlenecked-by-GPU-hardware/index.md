@@ -2,9 +2,9 @@
 title = "How modern AI workloads are bottlenecked by GPU hardware"
 [extra]
 [[extra.authors]]
-name = "Darren Mai (Blogger, Data Collector, Presenter, Slide Creator)"
+name = "Darren Mai"
 [[extra.authors]]
-name = "Dustin Bajarin-Freitas (Presenter, Slide Creator)"
+name = "Dustin Bajarin-Freitas"
 +++
 
 # Introduction
@@ -77,6 +77,10 @@ With GPU hardware counters, we could also use a roofline-style analysis that wou
 ## Repo
 The scripts used to generate the data collected in this project can be found at https://github.com/IMPULS3D/AI-Hardware-Bottleneck-scripts.
 Some early results of the experiments can also be found in the repo.
+
+## Division of responsibilities
+- Darren: Created slides and presented. Wrote and coded the script as described in the blog. Collected the data. 
+- Dustin: Created slides and presented. Organized data and wrote a script.
 
 ## AI Disclosure
 ChatGPT was used to aid in formatting blog.
