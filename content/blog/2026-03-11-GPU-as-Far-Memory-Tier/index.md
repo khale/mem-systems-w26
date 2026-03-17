@@ -7,6 +7,11 @@ name = "John Aebi"
 name = "Isaac Lonergan"
 +++
 
+# Member Contributions
+**Isaac Lonergan** - Set up all hardware for testing and managed CUDA installations. Created initial benchmarks for testing bandwidth and latency of both GPU and disk SWAP space. Developed CUDA UVM implementation for GPU allocator (Did not get used due to ineffective swapping).
+
+**John Aebi** - Researched CUDA framework, Developed code for GPU and SWAP memory tiers, Made latency and bandwidth measurements for both memory tiered systems, Determined optimal page size and file sizes for testbench, Synthesized results for system results and comparisons to baseline.
+
 # Introduction
 There are many options for a memory tier that comes after the system RAM. One of these options may be the graphics memory onboard a graphics processor. Accessing this memory could happen over a high-speed PCIe link, the same one that drives currently use. The upside to using graphics memory instead of a storage device is the access speed.
 
