@@ -49,6 +49,17 @@ The result of our testing indicates that node replication provides a insufficien
 While the cases that we tested indicate that the overhead of having to transmit data several times over high latency nodes outweighs the benefits of being able to read locally, both benchmark functions we implemented, including the one we didn't store data for, were for comparatively write heavy operations. For something more read-heavy—like allowing nodes to simply access a database to do local operations—this architecture may be more useful.
 
 
+#### Contribution Split
+Shubhangi  
+- Found benchmarks
+- Implemented benchmarks and automated data collection
+- Wrote presentation slides
+Kabir  
+- Implemented node replicaiton for benchmarks
+- Setup experimental setup with QEMU using numa
+- Ran tests and recorded the data
+- Wrote report
+
 # References
 [1] A. Baumann et al., “The multikernel: a new OS architecture for scalable multicore systems,” in Proceedings of the ACM SIGOPS 22nd symposium on Operating systems principles, Big Sky Montana USA: ACM, Oct. 2009, pp. 29–44. doi: 10.1145/1629575.1629579.
 
