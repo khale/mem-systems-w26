@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: TPP: Transparent Page Placement for CXL-Enabled Tiered Memory</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="TPP: Transparent Page Placement for CXL-Enabled Tiered Memory">
+<meta property="og:description"
+    content="Purpose
+This paper addresses a growing problem in hyperscale datacenters: memory is becoming one of the largest contributors to total cost and power consumption. As memory demands increase and DRAM scaling slows, simply adding more DRAM is no longer cost-effective.
+With the emergence of CXL (Compute Express Link), servers can now attach additional memory tiers with different performance and cost characteristics. However, using slower memory tiers can significantly lower application performance.
+The primary goals of the paper are:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>TPP: Transparent Page Placement for CXL-Enabled Tiered Memory</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Deptmer Ashley (Blogger),
+      
+        Jared Ho (Leader&#x2F;Presenter),
+      
+        Brian Castellon Rosales (Leader&#x2F;Presenter),
+      
+        John Aebi (Scribe)
+      
+      <span>
+    
+    <time datetime="2026-02-25">
+      February 25, 2026
+    </time>
+  </p>
+  <h2 id="purpose">Purpose</h2>
+<p>This paper addresses a growing problem in hyperscale datacenters: <strong>memory is becoming one of the largest contributors to total cost and power consumption</strong>. As memory demands increase and DRAM scaling slows, simply adding more DRAM is no longer cost-effective.</p>
+<p>With the emergence of <strong>CXL (Compute Express Link)</strong>, servers can now attach additional memory tiers with different performance and cost characteristics. However, using slower memory tiers can significantly lower application performance.</p>
+<p>The primary goals of the paper are:</p>
+<ul>
+<li>Characterize real production workload memory behavior</li>
+<li>Evaluate opportunities for tiered-memory systems</li>
+<li>Design an OS-level, application-transparent page placement system</li>
+<li>Demonstrate production deployment feasibility</li>
+</ul>
+<p>Key insight:</p>
+<blockquote>
+<p>A tiered memory system can match near-DRAM performance but only if page placement is handled intelligently.</p>
+</blockquote>
+<hr />
+<h2 id="what-cxl-enabled-tiered-memory-is">What CXL-Enabled Tiered Memory Is</h2>
+<p>CXL allows memory to be <strong>decoupled from the CPU</strong>. Instead of memory being tightly attached to a processor socket, CXL enables additional memory devices to appear as CPU-less NUMA nodes.</p>
+<p>This creates a system with:</p>
+<ul>
+<li><strong>Local memory (fast tier)</strong> — directly attached DRAM</li>
+<li><strong>CXL memory (slow tier)</strong> — higher latency, potentially cheaper memory</li>
+<li>Byte-addressable load/store semantics</li>
+<li>Cache-line granularity access</li>
+<li>NUMA-like access behavior</li>
+</ul>
+<p>Importantly, CXL memory behaves like main memory, not like swap, which preserves load/store semantics and avoids expensive page faults for every access.</p>
+<h2 id="motivation">Motivation</h2>
+<p>Datacenter workloads rarely use all allocated memory at full intensity. The authors observe:</p>
+<ul>
+<li>55–80% of allocated memory may remain idle within short intervals</li>
+<li>Anonymous (heap/stack) pages tend to be hotter</li>
+<li>File-backed pages tend to be colder</li>
+<li>Page access patterns are stable over minutes to hours</li>
+</ul>
+<p>This suggests a major opportunity: Cold pages can be moved to slower memory tiers without significantly hurting performance if done carefully.</p>
+<p>However, default Linux memory management assumes homogeneous DRAM and performs poorly in heterogeneous tiered systems.</p>
+<h2 id="chameleon-characterizing-real-workloads">Chameleon: Characterizing Real Workloads</h2>
+<p>Before designing a solution, the authors built <strong>Chameleon</strong>, a lightweight user-space profiling tool that uses hardware sampling (PEBS) to generate heatmaps of page access behavior.</p>
+<p>Key findings from production workloads:</p>
+<ul>
+<li>Large portions of memory remain cold</li>
+<li>Anonymous pages are generally hotter than file-backed pages</li>
+<li>Page temperature changes over time</li>
+<li>Some cold pages become hot again later</li>
+</ul>
+<p>These observations directly influenced the design of TPP.</p>
+<hr />
+<h2 id="tpp-transparent-page-placement">TPP: Transparent Page Placement</h2>
+<p>TPP is a kernel-level page placement mechanism designed for CXL-enabled tiered memory systems.</p>
+<p>It has four core components:</p>
+<h3 id="1-lightweight-page-demotion">1. Lightweight Page Demotion</h3>
+<p>Instead of swapping cold pages to disk, TPP <strong>migrates</strong> cold pages from local DRAM to CXL memory using NUMA migration.</p>
+<p>This is much faster than swap and preserves in-memory access semantics.</p>
+<p>Cold pages are selected using existing Linux LRU mechanisms.</p>
+<h3 id="2-decoupled-allocation-and-reclamation">2. Decoupled Allocation and Reclamation</h3>
+<p>Under memory pressure, Linux normally blocks allocations until reclamation frees memory. In tiered systems, this can push too many allocations into slow memory.</p>
+<p>TPP separates allocation watermarks and demotion watermarks This maintains a headroom of free pages in fast memory, ensuring
+new hot allocations land in DRAM and promotions of hot pages from CXL are possible.</p>
+<h3 id="3-hot-page-promotion">3. Hot Page Promotion</h3>
+<p>Pages in CXL memory that become hot must be promoted back to DRAM.</p>
+<p>TPP augments Linux NUMA balancing but introduces hysteresis:</p>
+<ul>
+<li>Only pages in active LRU lists are promoted</li>
+<li>Infrequently accessed pages are filtered</li>
+<li>Reduces ping-pong behavior between tiers</li>
+</ul>
+<p>This ensures only truly hot pages are migrated back.</p>
+<h3 id="4-page-type-aware-allocation">4. Page Type-Aware Allocation</h3>
+<p>Applications can optionally prefer anonymous pages with faster memory, or file cache pages and slower memory.
+This improves convergence speed and reduces unnecessary migrations.</p>
+<hr />
+<h2 id="evaluation">Evaluation</h2>
+<p>The authors deploy TPP on real CXL-enabled hardware in production-like environments.</p>
+<p>Key results:</p>
+<ul>
+<li>TPP performs within <strong>&lt;1% of an all-local-memory baseline</strong></li>
+<li>Improves performance by up to <strong>18% over default Linux</strong></li>
+<li>Outperforms NUMA Balancing and AutoTiering by <strong>5–17%</strong></li>
+<li>Works even when fast DRAM is only 20% of total memory</li>
+</ul>
+<p>Importantly, TPP has already been largely merged into <strong>Linux kernel v5.18</strong>, demonstrating practical viability.</p>
+<h3 id="why-emulation-is-not-enough">Why Emulation Is Not Enough</h3>
+<p>A major takeaway parallels earlier persistent memory research:</p>
+<p>Emulation does not accurately capture:</p>
+<ul>
+<li>Real NUMA latency effects</li>
+<li>Migration overheads</li>
+<li>Page temperature dynamics</li>
+<li>Production workload behavior</li>
+</ul>
+<p>This paper demonstrates the importance of evaluating real hardware in real environments.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>This paper shows that tiered memory systems powered by CXL are not only feasible but practical for hyperscale datacenters. The key challenge is not the hardware itself, but intelligent software management.</p>
+<p>TPP demonstrates that with lightweight demotion, careful promotion, and page-type awareness, a heterogeneous memory system can deliver performance nearly identical to an ideal DRAM-only system — while enabling significant cost and capacity advantages.</p>
+<p>More broadly, the paper highlights a recurring systems lesson:</p>
+<blockquote>
+<p>Hardware innovation requires equally thoughtful operating system design.</p>
+</blockquote>
+<h2 id="class-discussion-notes-summary">Class Discussion Notes Summary</h2>
+<p>During the class discussion, the focus shifted from the paper’s implementation details to the broader implications of CXL-enabled tiered memory systems and how they affect system architecture and memory management.</p>
+<p>One of the primary themes discussed was the flexibility introduced by CXL’s CPU and memory bus architecture. Unlike traditional systems where memory capacity is constrained by the number of DDR channels attached
+to the CPU, CXL allows memory capacity to scale independently from processor sockets. This enables datacenters to attach large pools of additional memory without requiring additional CPUs, potentially improving resource
+utilization and lowering system cost. In practice, CXL memory appears within the same physical address space as local DRAM and remains byte-addressable, allowing applications to access it through normal load and store instructions.
+However, its performance characteristics resemble those of remote NUMA memory, with slightly higher latency and reduced efficiency when heavily utilized.</p>
+<p>The discussion also highlighted the performance trade-offs introduced by large CXL memory deployments. While tiered memory systems significantly increase capacity, workloads can experience measurable slowdowns when a large fraction
+of memory accesses occur in the slower tier. Example workloads discussed included caching systems, web services, and data warehouse applications, which can see performance drops ranging from roughly 14% to over 20% when large amounts of
+memory are served by CXL rather than local DRAM. These results reinforce the importance of intelligent page placement and memory management strategies.</p>
+<p>Much of the discussion focused on how Transparent Page Placement (TPP) attempts to mitigate these challenges. TPP introduces lightweight demotion of cold pages to slower memory tiers while enabling efficient promotion of hot pages back
+to faster DRAM. Unlike traditional Linux memory management, TPP maintains a separate demotion mechanism and decouples page allocation from reclamation. This allows the operating system to maintain a reserve of fast-memory pages for new allocations
+while still utilizing slower memory capacity effectively. The design goal is to reduce allocation latency while avoiding excessive page thrashing between memory tiers. Another topic discussed was the role of workload-aware memory policies.
+Because different applications exhibit different memory access patterns, effective tiered memory management must consider application behavior. For example, some workloads maintain stable hot sets of memory that benefit from remaining in fast DRAM,
+while other data structures can tolerate slower access without impacting overall performance. TPP attempts to account for these differences by adapting page promotion and demotion decisions based on observed access patterns.</p>
+<p>Finally, the evaluation results highlighted in the discussion emphasized that TPP improves system responsiveness in memory-heavy environments. In particular, experiments demonstrated that optimized allocation paths could significantly improve page allocation rates under high memory pressure, especially when the majority of memory resides in the slower CXL tier. These results illustrate that effective operating system policies can make heterogeneous memory systems practical even when a large portion of total memory capacity is provided by slower devices.</p>
+<hr />
+<h3 id="ai-disclosure">AI Disclosure</h3>
+<p>ChatGPT was used to help structure and summarize the paper. The content was reviewed and refined to ensure technical accuracy and clarity.</p>
+
+  <footer>
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>

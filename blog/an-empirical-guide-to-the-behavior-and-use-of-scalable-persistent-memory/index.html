@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: An Empirical Guide to the Behavior and Use of Scalable Persistent Memory</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="An Empirical Guide to the Behavior and Use of Scalable Persistent Memory">
+<meta property="og:description"
+    content="Purpose
+This paper studies how real Intel Optane Persistent Memory behaves and explains why earlier research based on emulation produced misleading conclusions.
+Main goals:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>An Empirical Guide to the Behavior and Use of Scalable Persistent Memory</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Nolan Cutler (Leader&#x2F;Presentor),
+      
+        Soren Emmons (Leader&#x2F;Presentor),
+      
+        Jared Ho (Blogger),
+      
+        Deptmer Ashley (Blogger),
+      
+        Allen Lee (Scribe)
+      
+      <span>
+    
+    <time datetime="2026-02-11">
+      February 11, 2026
+    </time>
+  </p>
+  <h2 id="purpose">Purpose</h2>
+<p>This paper studies <strong>how real Intel Optane Persistent Memory behaves</strong> and explains why earlier research based on emulation produced misleading conclusions.</p>
+<p>Main goals:</p>
+<ul>
+<li>Characterize Optane on real hardware</li>
+<li>Compare real behavior vs emulation assumptions</li>
+<li>Extract practical software design guidelines</li>
+<li>Reevaluate prior persistent-memory systems</li>
+</ul>
+<p>Key insight:</p>
+<blockquote>
+<p>Persistent memory is <strong>not just slower DRAM</strong> — performance depends heavily on access patterns, access size, and concurrency.</p>
+</blockquote>
+<h2 id="what-scalable-persistent-memory-is">What Scalable Persistent Memory Is</h2>
+<p>Optane DIMMs introduce a new tier between DRAM and storage.</p>
+<h3 id="core-properties">Core properties</h3>
+<ul>
+<li>Non-volatile (data survives power loss)</li>
+<li>Byte-addressable</li>
+<li>Installed on the memory bus</li>
+<li>Slower than DRAM, faster than SSDs</li>
+<li>Higher density than DRAM</li>
+</ul>
+<h2 id="operating-modes">Operating Modes</h2>
+<h4 id="app-direct-mode">App-Direct Mode</h4>
+<p>Persistent memory visible to software<br />
+Applications use load/store instructions<br />
+Used for durable data structures</p>
+<h4 id="memory-mode">Memory Mode</h4>
+<p>DRAM acts as cache<br />
+Appears as a volatile memory extension<br />
+Persistence hidden from software</p>
+<p>The paper focuses on <strong>App-Direct mode</strong>.</p>
+<hr />
+<h2 id="internal-architecture-overview">Internal Architecture Overview</h2>
+<p>The internal architecture of scalable persistent memory comprises several components that collectively shape its performance characteristics. The Integrated Memory Controller (iMC) manages memory traffic through dedicated read and write pending queues, while persistence guarantees are provided by the Asynchronous DRAM Refresh (ADR). Specifically, stores become durable once they reach the write pending queue (WPQ) within the iMC, even before data is committed to the underlying media. Access to the persistent memory device is coordinated by an on-DIMM controller (XPController), which performs address translation and mediates operations on the storage medium. Internally, the device operates at a 256-byte access granularity (XPLine), causing small writes to incur additional internal operations. To reduce this overhead, the controller employs a small write-combining buffer (XPBuffer, approximately 16 KB) that merges adjacent writes prior to media updates. Consequently, write operations may exhibit low apparent latency because completion is acknowledged at the ADR boundary. However, sustained bandwidth remains limited by the rate at which the XPBuffer drains data to the underlying 3D-XPoint media.</p>
+<h2 id="experimental-methodology">Experimental Methodology</h2>
+<p>To accurately characterize persistent memory behavior, the authors developed a custom microbenchmarking framework called LATTester. The methodology was designed to minimize software and operating-system interference in order to isolate hardware-level effects. Kernel threads were pinned to fixed CPU cores, interrupts and hardware prefetchers were disabled, and memory accesses were performed on pre-populated addresses to eliminate page-fault overhead. Measurements relied on precise cycle-level timing while systematically sweeping a large parameter space, including access patterns, access sizes, and concurrency levels. The primary objective of this approach was to capture intrinsic hardware behavior rather than performance artifacts introduced by software abstractions or system noise.</p>
+<hr />
+<h2 id="key-hardware-findings">Key Hardware Findings</h2>
+<h3 id="latency">Latency</h3>
+<ul>
+<li>Read latency: ~2-3× slower than DRAM</li>
+<li>Sequential reads are significantly faster than random reads</li>
+<li>Write latency appears similar due to DRAM because it is acknowledged at the iMC (ADR domain)</li>
+</ul>
+<h3 id="tail-latency">Tail Latency</h3>
+<p>Rare outliers exist where some writes take up to 50 µs (100× slower than normal). This is likely caused by internal remapping for wear-leveling or thermal management.</p>
+<h3 id="bandwidth-and-thread-scaling">Bandwidth and Thread Scaling</h3>
+<p><strong>DRAM:</strong> Scales predictably with thread count.\</p>
+<blockquote>
+<p><strong>vs.</strong></p>
+</blockquote>
+<p><strong>Optane:</strong>  Performance is non-monotonic. It peaks at low thread counts (e.g., 1-4 threads for non-interleaved writes) and then drops due to contention in the XPBuffer</p>
+<h3 id="access-size-effects">Access Size Effects</h3>
+<ul>
+<li>Internal access granularity = <strong>256 bytes</strong></li>
+<li>Writes smaller than 256B cause severe bandwidth loss</li>
+<li>Caused by internal read-modify-write operations</li>
+</ul>
+<h3 id="4kb-performance-dip">4KB Performance Dip</h3>
+<p>Observed performance drop around 4KB:</p>
+<ul>
+<li>Memory controller contention</li>
+<li>DIMM interleaving imbalance</li>
+</ul>
+<p>Behavior not captured by emulation.</p>
+<h3 id="sequential-vs-random-access">Sequential vs Random Access</h3>
+<p>Optane strongly prefers:</p>
+<ul>
+<li>Sequential access</li>
+<li>Large contiguous writes</li>
+</ul>
+<p>Random small writes cause:</p>
+<ul>
+<li>Bandwidth collapse</li>
+<li>Increased latency</li>
+<li>Poor scaling</li>
+</ul>
+<h2 id="emulation-was-inaccurate">Emulation Was Inaccurate</h2>
+<p>Common emulation techniques:</p>
+<ul>
+<li>DRAM with added delays</li>
+<li>NUMA DRAM emulation</li>
+<li>Software simulators</li>
+<li>Hardware emulators</li>
+</ul>
+<p>Problems:</p>
+<ul>
+<li>Failed to model read/write asymmetry</li>
+<li>Ignored sequential preference</li>
+<li>Missed small-write penalties</li>
+<li>Produced misleading conclusions</li>
+</ul>
+<h3 id="case-study-rocksdb">Case Study: RocksDB</h3>
+<p>Emulation result:
+Fine-grained persistence looked best.</p>
+<p>Real Optane result:
+Write-ahead logging performs better.</p>
+<p>Reason:
+Sequential logging matches hardware strengths.</p>
+<hr />
+<h2 id="software-design-guidelines">Software Design Guidelines</h2>
+<p>Based on their empirical characterization, the authors derive a set of practical design guidelines for software targeting persistent memory systems. First, applications should avoid random accesses smaller than 256 bytes, as the device’s internal write granularity introduces read–modify–write amplification for fine-grained updates; preserving spatial locality improves efficiency. Second, large transfers should preferentially use non-temporal stores, which bypass the cache hierarchy and reduce unnecessary cache-line traffic, thereby improving sustained write bandwidth. Third, the number of concurrent threads targeting a single DIMM should be limited, since excessive concurrency increases contention within controller queues and write buffers, leading to performance collapse beyond a small optimal operating point. Finally, software should avoid NUMA accesses whenever possible, as remote persistent memory accesses incur significant latency and bandwidth penalties, particularly under mixed read–write workloads.</p>
+<h2 id="case-study-insights">Case Study Insights</h2>
+<h3 id="nova-filesystem">NOVA Filesystem</h3>
+<p>The paper demonstrates the practical impact of its design guidelines through optimizations applied to the NOVA persistent-memory file system. In its original design, frequent small metadata updates resulted in inefficient fine-grained writes that degraded performance on Optane hardware. To mitigate this issue, the authors restructured updates by embedding write data within larger sequential log entries, thereby increasing write locality and reducing internal write amplification. This modification significantly improved performance, yielding up to a sevenfold reduction in latency for small writes.</p>
+<h3 id="pmdk-micro-buffering">PMDK Micro-Buffering</h3>
+<p>The authors further evaluate micro-buffering techniques within PMDK-based transactional workloads. Their analysis shows that the choice of persistence mechanism should depend on object size: conventional cached stores combined with cache-line write-back instructions are more efficient for small objects, whereas non-temporal stores provide higher bandwidth for larger updates by bypassing the cache hierarchy. Experimental results identify a performance crossover point at approximately 1 KB, beyond which non-temporal stores become preferable.</p>
+<h3 id="multi-dimm-awareness">Multi-DIMM Awareness</h3>
+<p>Another case study highlights the importance of hardware-aware thread placement. By balancing and pinning threads across multiple DIMMs rather than allowing uncontrolled sharing, the system reduces contention within memory controllers and improves overall bandwidth utilization. This optimization resulted in performance improvements of up to 34%, demonstrating the importance of aligning software parallelism with the underlying memory topology.</p>
+<hr />
+<h2 id="class-discussion-notes-summary">Class Discussion Notes Summary</h2>
+<h3 id="historical-context">Historical context</h3>
+<ul>
+<li>CPU clock scaling slowed around early 2000s.</li>
+<li>Industry shifted toward thread-level parallelism.</li>
+<li>Adding cores became more effective than increasing complexity.</li>
+</ul>
+<h3 id="architecture-discussion">Architecture discussion</h3>
+<ul>
+<li>Simpler cores scale more easily.</li>
+<li>Memory bottlenecks dominate modern systems.</li>
+<li>Directory coherence helps multi-core scalability.</li>
+</ul>
+<h3 id="memory-bottleneck-insight">Memory bottleneck insight</h3>
+<ul>
+<li>Reads can be shared between caches.</li>
+<li>Writes serialize through memory controllers.</li>
+<li>Memory bandwidth becomes the limiting factor.</li>
+</ul>
+<hr />
+<h2 id="conclusion">Conclusion</h2>
+<p>This paper highlights how persistent memory introduces a new set of design challenges that cannot be understood by simply thinking of it as slower DRAM. Through real hardware measurements, the authors show that performance is highly sensitive to access size, locality, and concurrency, and that many assumptions made in earlier emulation-based studies do not hold in practice. The key takeaway is that software must be designed with clear awareness of how the hardware actually behaves. In practice, this means favoring sequential access patterns, avoiding small random writes, and carefully managing thread placement and memory topology. More broadly, the paper serves as a reminder that emerging hardware technologies often require rethinking established design intuition, and that meaningful system optimization ultimately depends on evaluating real devices rather than relying solely on simulation or emulation.</p>
+<h3 id="ai-disclosure">AI Disclosure</h3>
+<p>ChatGPT was used to summarize the paper, notes, and class discussion. The generative AI created a template which was then reviewed, edited and revised by the group.</p>
+
+  <footer>
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: Pond: CXL-Based Memory Pooling Systems for Cloud Platforms</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Pond: CXL-Based Memory Pooling Systems for Cloud Platforms">
+<meta property="og:description"
+    content="Introduction
+Public cloud providers are constantly balancing the need for top-tier virtual machine (VM) performance with the harsh reality of hardware costs. Main memory (DRAM) accounts for a staggering 50% of the total server cost in modern datacenters. A major culprit behind this expense is &quot;memory stranding.&quot; This phenomenon occurs when all CPU cores on a server are rented out to customers, leaving the remaining unallocated memory completely unusable by other systems.">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>Pond: CXL-Based Memory Pooling Systems for Cloud Platforms</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Mykyta &quot;Nick&quot; Synytsia (Scribe and Blogger),
+      
+        Shubhangi Pandey (Leader Presenter),
+      
+        Sam Shaaban (Presenter),
+      
+        Isaac Lonergan,
+      
+        Darren Mai,
+      
+        Nat Rurka,
+      
+        Adam Bobich
+      
+      <span>
+    
+    <time datetime="2026-03-02">
+      March  2, 2026
+    </time>
+  </p>
+  <h1 id="introduction">Introduction</h1>
+<p>Public cloud providers are constantly balancing the need for top-tier virtual machine (VM) performance with the harsh reality of hardware costs. Main memory (DRAM) accounts for a staggering 50% of the total server cost in modern datacenters. A major culprit behind this expense is "memory stranding." This phenomenon occurs when all CPU cores on a server are rented out to customers, leaving the remaining unallocated memory completely unusable by other systems.</p>
+<ul>
+<li>At the 75th percentile, 6% of memory is stranded</li>
+<li>At the 85th percentile, 10% of memory is stranded</li>
+<li>At the 95th percentile of server utilization, up to 25% of memory can become stranded.</li>
+</ul>
+<p>Additionally, due to overprovisioning by customers, nearly half of all rented VM memory goes untouched. While memory pooling via the Compute Express Link (CXL) standard allows load/store access without the heavy page-fault overheads of RDMA, it adds roughly 70-90ns of latency essentially doubling the access time compared to local DRAM. Because 60% of cloud workloads experience more than a 5% slowdown under CXL latencies, naive pooling is impossible. Pond is designed to pool this stranded and untouched memory intelligently, maintaining strict cloud performance standards.</p>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/pond/./memory_stranding.png" alt="Memory Stranding" /></p>
+<h1 id="architecture">Architecture</h1>
+<p>Pond utilizes a hardware-software co-design to achieve its goals.</p>
+<h2 id="hardware-layer">Hardware Layer</h2>
+<p>Pond introduces a multi-headed External Memory Controller (EMC) ASIC that allows multiple CPU sockets (typically 8 to 16) to access a shared pool of DDR5 memory via the CXL.mem protocol. When implementing CXL Type 3 memory expansion controllers on FPGAs or ASICs, managing latency overhead is a massive challenge. Pond tackles this by avoiding complex switches entirely, connecting the multi-headed EMC directly to standard server blades to keep latencies within acceptable bounds.</p>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/pond/./external_memory_controller.png" alt="External Memory Controller (EMC)" /></p>
+<h2 id="system-software">System Software</h2>
+<p>Pond exposes the pooled memory to the VM's guest operating system as a "zNUMA" (Zero-Core NUMA) node. Modern operating systems are designed to preferentially allocate memory to local NUMA nodes where active cores reside. By creating a NUMA node with memory but zero cores, Pond tricks the guest OS into treating the CXL pool as a last resort, ensuring that only the "untouched" portion of a VM's memory footprint ever spills into the slower pool.</p>
+<h2 id="control-plane">Control Plane</h2>
+<p>Pond uses a machine learning (ML) system interconnected with the VM scheduler. The ML models predict whether a workload is latency-insensitive (allowing it to run entirely on pool memory) and predict the amount of "untouched" memory a standard VM will have. If poor performance is ever observed, a Quality of Service (QoS) monitor works with a mitigation manager to migrate resources back to local memory.</p>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/pond/./pond_control_plane_workflow.png" alt="Pond Control Plane Workflow" /></p>
+<h1 id="methodology">Methodology</h1>
+<p>The researchers evaluated Pond using a mix of lab experiments and large-scale simulations. They tested 158 different workloads. Including proprietary cloud workloads, Redis, Spark, GAPBS, TPC-H, and SPEC CPU 2017, under emulated CXL latencies of 182% and 222% relative to local DRAM. To evaluate end-to-end memory savings, they fed their simulator with production VM traces collected from 100 Azure clusters over a 75-day period.</p>
+<h1 id="results">Results</h1>
+<p>Pond's evaluation yielded several compelling findings.</p>
+<h2 id="cost-savings">Cost Savings</h2>
+<p>By pooling memory across 8-16 sockets, Pond achieved a 7-9% reduction in overall DRAM requirements, which translates to a massive 3.5% reduction in total cloud hardware costs. Larger pool sizes provided diminishing returns and incurred higher latency penalties. In contrast, scaling up to 64 sockets yeilded 13% savings but doing so required CXL switches that pushed access latencies beyond 270ns.</p>
+<h2 id="performance">Performance</h2>
+<p>The ML prediction model achieves 7-9% saving by pooling by successfully identifying 25% of untouched memory across the fleet while only overpredicting for 4% of VMs.</p>
+<h2 id="znuma-effectiveness">zNUMA Effectiveness</h2>
+<p>The zNUMA abstraction worked exceptionally well. Workloads correctly predicted to have untouched memory sent less than 0.38% of their memory traffic to the slower CXL pool, virtually eliminating any latency penalties.</p>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/pond/./memory_savings_under_performance_constraints.png" alt="Memory Savings Under Performance Constraints" /></p>
+<h1 id="discussion">Discussion</h1>
+<p>While Pond offers a robust solution for standard cloud workloads, there are a few practical considerations to keep in mind.</p>
+<h2 id="qos-mitigation-overhead">QoS Mitigation Overhead</h2>
+<p>When the ML model mispredicts and a VM heavily accesses the slower zNUMA node, Pond relies on a mitigation process. This requires temporarily turning off virtualization accelerators to perform memory copy operations. If a workload frequently requires reevaluation, this copying process could become a severe performance bottleneck.</p>
+<h2 id="applicability-to-ai">Applicability to AI</h2>
+<p>Modern AI workloads are fiercely latency-sensitive and require massive amounts of memory. Because their memory access patterns rarely leave large chunks of memory "untouched," Pond's current pooling approach is likely unsuitable for AI clusters.</p>
+<h2 id="fragmentation-issues">Fragmentation Issues</h2>
+<p>Software allocators (like user-space malloc) tend to fragment memory, grabbing more pages than strictly needed. While Pond effectively tackles "stranded" memory at the hypervisor level, managing highly fragmented "unused" memory within the VM remains a stubborn software challenge.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>Pond represents a major step forward in cloud infrastructure, demonstrating that CXL-based memory pooling is both viable and economically impactful. By intelligently combining a multi-headed hardware controller with a software-defined zNUMA abstraction and machine learning telemetry, Pond successfully reclaims stranded memory. It achieves near-local DRAM performance while significantly driving down the hardware costs that plague modern datacenters, making it an essential blueprint for the future of cloud scaling.</p>
+<h1 id="ai-disclosure">AI Disclosure</h1>
+<ul>
+<li>Gemini to help summarize paper and scribe notes.</li>
+</ul>
+
+  <footer>
+    
+    <p>[Mykyta Synytsia] is a masters of engineering student studying computer science at Oregon State University.</p>
+
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>

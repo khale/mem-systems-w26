@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: Memento: Architectural Support for Ephemeral Memory Management in Serverless Environments</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Memento: Architectural Support for Ephemeral Memory Management in Serverless Environments">
+<meta property="og:description"
+    content="Introduction
+First, let us understand the problem this paper is trying to solve. Serverless functions are very short-lived, and this prevents them from amortizing the high costs of memory allocation and deallocation. They were forced to pay the full critical path latency costs for memory management in both userspace (executing malloc) and the OS kernel (executing mmap, sycalls, faulthandlers). The paper mentions that for C++ applications, userspace operations accounted for 96% of the memory overhead, and for Python applications, the os kernel operations were responsible for 52% of the overhead. Memento, therefore, targeted functions that allocated small objects, showed short-lived behaviour, and had expensive kernel involvement.
+What Memento adds
+Two hardware pieces:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>Memento: Architectural Support for Ephemeral Memory Management in Serverless Environments</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        James Tappert (Leader Presentor),
+      
+        Kabir Vidyarthi (Presentor),
+      
+        Paul Suvrojyoti (Blogger),
+      
+        Carlos Alvarado-Lopez (Blogger),
+      
+        William Davis (Scribe)
+      
+      <span>
+    
+    <time datetime="2026-02-23">
+      February 23, 2026
+    </time>
+  </p>
+  <h1 id="introduction">Introduction</h1>
+<p>First, let us understand the problem this paper is trying to solve. Serverless functions are very short-lived, and this prevents them from amortizing the high costs of memory allocation and deallocation. They were forced to pay the full critical path latency costs for memory management in both userspace (executing malloc) and the OS kernel (executing mmap, sycalls, faulthandlers). The paper mentions that for C++ applications, userspace operations accounted for 96% of the memory overhead, and for Python applications, the os kernel operations were responsible for 52% of the overhead. Memento, therefore, targeted functions that allocated small objects, showed short-lived behaviour, and had expensive kernel involvement.</p>
+<h4 id="what-memento-adds">What Memento adds</h4>
+<h5 id="two-hardware-pieces">Two hardware pieces:</h5>
+<ul>
+<li>Hardware Object Allocator: handles small-object malloc/free quickly</li>
+<li>Hardware Page Allocator: gives out arenas (VA ranges) and backs pages with physical memory on demand and also avoids kernel page fault handling on the critical path</li>
+</ul>
+<h5 id="isa-integration">ISA integration</h5>
+<p>Two new instructions are added:</p>
+<ul>
+<li>obj-alloc size:  returns pointer</li>
+<li>obj-free ptr: frees it</li>
+</ul>
+<p>We will talk about these in detail below.</p>
+<h4 id="baseline-malloc">Baseline Malloc</h4>
+<p>Before we look at the new hardware, let us first see what happens when our program uses malloc normally.</p>
+<p>When the program starts, the OS already sets up some initial virtual addresses like a starter kit. Later on, the program may need more virtual addresses and may start calling malloc for two key reasons:</p>
+<ul>
+<li>The heap must grow</li>
+<li>The allocator wants a new region for its own structure, so it asks for more Virtual address.
+So malloc can use brk/sbrk: grow the traditional heap, or mmap: map a new virtual region somewhere else.</li>
+</ul>
+<p>When the program runs, it does a few kinds of memory-related tasks:</p>
+<ul>
+<li>Fetch instructions</li>
+<li>Read data</li>
+<li>Write data</li>
+<li>Ask for more memory (malloc)</li>
+<li>Give memory back (free/delete)</li>
+</ul>
+<p>Note - Malloc is more like a manager; it calls the userspace allocator, which has metadata that helps it answer quickly:</p>
+<ul>
+<li>what memory it already has</li>
+<li>what parts are free vs used</li>
+<li>where to put a new allocation of a given size</li>
+</ul>
+<p>Allocators round malloc requests into size classes (ex 256 byte objects). For example, if the request is around 100B, then it will be rounded up to the 128B size class.
+A pool is typically one 4KB page that the allocator dedicates to only one size class. For example, a 4KB pool for 128B objects.
+A slot is one fixed-size piece inside that pool</p>
+<p>Now, let us see if our program uses something like malloc (100).</p>
+<p>Scenario A: When the allocator already has free space</p>
+<ul>
+<li>code calls malloc(p)</li>
+<li>Allocator checks if it already has a pool/page with a free slot for 128B objects.</li>
+<li>If yes, pick one free slot</li>
+<li>return pointer p immediately, no kernel call.</li>
+</ul>
+<p>Scenario B: malloc(100), but the allocator has no free space</p>
+<ul>
+<li>malloc(100) happens</li>
+<li>allocator checks for a free slot, but noneare  available</li>
+<li>allocator asks OS for more virtual memory:</li>
+<li>kernel runs and creates a mapping:</li>
+<li>It records that this VA range belongs to this process, with read/write permissions (but no mapping to physical RAM space)</li>
+<li>Kernel returns to userspace</li>
+<li>allocator carves that new region into blocks and returns p</li>
+</ul>
+<p>Now, when the first time the touch happens to p, a page fault happens and a physical page gets allocated.</p>
+<p>Let us say we do read/write for the first time, something like p[0] = x</p>
+<ul>
+<li>CPU tries to execute the store to virtual address p</li>
+<li>CPU checks TLB for p’s page, and it will be a miss for the first touch</li>
+<li>CPU does a page table walk</li>
+<li>It finds the PTE says: not present</li>
+<li>CPU raises a page fault exception and jumps into the kernel</li>
+</ul>
+<p>Now the kernel will handle the page fault:</p>
+<ul>
+<li>confirms the address is valid</li>
+<li>allocates a physical 4KB page</li>
+<li>zeros the page so you can’t read someone else’s data or old data</li>
+<li>Updates the page table entry as it points to that physical page and sets “present=1.”</li>
+<li>Updates/invalidates TLB</li>
+<li>Returns from the fault back to the program</li>
+</ul>
+<p>Now, VA to PA mapping exists, therefore the store succeeds.</p>
+<p>This shows the full overhead of the memory management, and this is problematic for serverless functions, which are very short.</p>
+<h1 id="the-memento-way">The Memento way</h1>
+<h3 id="hardware-object-allocator">Hardware Object Allocator</h3>
+<p>It solves the userspace allocator cost for small objects (&lt;= 512B). This hardware operation is often as fast as an L1. The key idea here is that hardware manages memory in arenas per size class. Arena = a contiguous VA range used only for one size class. It has i) an arena header with a bitmap and list pointers, ii)an arena body with a fixed number of objects.</p>
+<p>Bit map -  A tiny structure just enough bits to track all the slots in an arena body. 0 menas slot is free, and 1 means the slot is allocated.
+List pointer -  A list pointer is simply a pointer used to link arenas together in a list. There are two lists: i)available list - arenas with at least one free slot,t ii) full list arenas with no free slots.</p>
+<p>This hardware also has a tiny table called HOT (Hardware Object Table): HOT keeps the most recently used arena header for each size class.</p>
+<p>This is what happens step by step:</p>
+<ul>
+<li>
+<p>App calls malloc(size) -&gt; runtime routes small sizes to obj-alloc(size)\</p>
+</li>
+<li>
+<p>Hardware object allocator rounds size to a size class</p>
+</li>
+<li>
+<p>It indexes HOT using that size class, and if it finds an arena of that size class</p>
+<ul>
+<li>It scans the bitmap</li>
+<li>If it finds a 0 bit, it sets it to 1 (mark slot allocated)</li>
+<li>It computes the returned pointer and returns the VA to the core</li>
+</ul>
+</li>
+<li>
+<p>If the arena is full (bitmap has no 0)</p>
+<ul>
+<li>Hardware loads another arena header of the same size class if available from the available list into HOT and updates lists, i.e., moves the old full arena to the full list.</li>
+</ul>
+</li>
+<li>
+<p>If there is no available arena</p>
+<ul>
+<li>It requests a new arena from the hardware page allocator</li>
+</ul>
+</li>
+</ul>
+<p>So this whole process is very fast, as it is done by the hardware and skips the software allocation.</p>
+<h3 id="hardware-page-allocator">Hardware Page Allocator</h3>
+<p>It solves the kernel/OS cost of getting pages mapped. Page allocator lets the app get memory from a reserved region without the OS costs like context switches and kernel code execution. In normal systems, when your program touches a new page, the CPU may trigger a page fault, and the kernel handles it, but the kernel path is expensive, especially for short functions.</p>
+<p>This does almost the same thing but in hardware, so faster.</p>
+<p>Note - there is a one-time OS setup before a program uses Memento, which includes</p>
+<ul>
+<li>Reserves a special virtual address region for Memento (a range of VAs only used by Memento)</li>
+<li>Memento’s hardware interprets it as 64 equal lanes via address math, and for each size class/each lane, HPA keeps a pointer (per size class bump pointer) which tells where the next arena should start in this lane.</li>
+<li>Writes that region bounds into registers. MRS/MRE = start/end of Memento region.</li>
+<li>Keeps a pool of free physical pages available</li>
+</ul>
+<p>When the object allocator runs out of space for a sizeclass it asks the HPA for a new arena of that particular size class</p>
+<p>Now showing the step-by-step process of the hardware</p>
+<ul>
+<li>Picks a new virtual address range for that arena using the simple per-size-class bump pointer</li>
+<li>Immediately allocates 1 physical page for the first page of the arena because that first page holds the arena header metadata that must be written immediately</li>
+<li>Returns to the object allocator i) the arena virtual base address ii)the header page’s physical address</li>
+</ul>
+<p>Memento deliberately does NOT allocate RAM for all pages of the arena up front. Only the first page is backed up immediately; the rest of the pages get backed up on first access.</p>
+<h5 id="now-first-access-to-an-unbacked-page-the-page-fault-replacer">Now First access to an unbacked page (the page fault replacer)</h5>
+<p>As we have discussed, normally it looks like CPU -&gt; page fault -&gt; kernel allocates page -&gt; kernel updates page table -&gt; return
+But memento changes it to CPU -&gt; page walk -&gt; HPA allocates page and updates memento page table -&gt; return mapping -&gt; CPU continues</p>
+<p>So instead of not present, then move fault to kernel Memento does not present, pass it to HPA, which allocates RAM and fills page tables, so no kernel trap.</p>
+<ul>
+<li>CPU tries to load/store to some virtual address</li>
+<li>TLB miss happens, and CPU starts a page walk</li>
+<li>MMU checks if VA inside [MRS, MRE]
+<ul>
+<li>If yes → it uses the Memento page table root instead of normal page tables. Basically looks up mappings using Memento’s own page tables</li>
+</ul>
+</li>
+<li>The MMU’s memory reads during the walk are tagged as Memento walk, so the HPA knows i)these page table reads belong to Memento ii) and it is allowed to fix missing entries. So the HPA watches</li>
+<li>If the page table already has a mapping, it returns the physical address</li>
+<li>If invalid -&gt; HPA(the hardware) creates what’s missing instead of the OS KERNER HANDLING IT
+<ul>
+<li>Missing leaf ((actual data page) - then the HPA actually grabs a free 4KB physical page from its page pool, writes that physical page number into the leaf PT, E, and marks it present</li>
+<li>Missing higher level entry -  Multi level page tables are like a tree: Root - Level 2 - Level 3 - Leaf, sometimes the intermediate page-table pages themselves don’t exist, so HPA allocates a fresh 4KB physical page to hold the next level page table then zeros it and then updates the current level entry to point to this new page table page.</li>
+</ul>
+</li>
+</ul>
+<p>So the whole thing is done in hardware without entering the kernel.</p>
+<h1 id="evaluation">Evaluation</h1>
+<h4 id="methodology">Methodology</h4>
+<p>Memento is evaluated using a full-system simulation (QEMU, SST, and DRAMSim3) running Linux 5.18. Two new hardware structures are modeled:</p>
+<ul>
+<li>Hardware Object Table (HOT): 3.4 KB</li>
+<li>Arena Allocation Cache (AAC): 32 entries</li>
+</ul>
+<p>CACTI analysis shows both incur minimal area and power overhead.</p>
+<p>Workloads included are:</p>
+<ul>
+<li>Serverless functions (Python, C++)</li>
+<li>Serverless platform operations (OpenFaaS: up, deploy, invoke)</li>
+<li>Data processing systems (Redis, Memcached, Silo, SQLite3)</li>
+</ul>
+<h4 id="performance">Performance</h4>
+<p>Memonto achieves:</p>
+<ul>
+<li>8-28% speedup for serverless functions</li>
+<li>16% average improvement across functions</li>
+<li>4-11% speedup for data processing workloads</li>
+</ul>
+<p>Speedup comes from four sources:</p>
+<ul>
+<li>Hardware object allocation</li>
+<li>Hardware object free</li>
+<li>Hardware page management</li>
+<li>Main memory bypass</li>
+</ul>
+<p>For functions, gains are split between object-level acceleration and page management, showing that optimizing only malloc is insufficient.</p>
+<p>Python and Golang benefit strongly from page-level acceleration due to larger heaps, while C++ workloads benefit primarily from object-level acceleration.</p>
+<h4 id="memory-impact">Memory Impact</h4>
+<p>Memonto reduces:</p>
+<ul>
+<li>30% DRAM bandwidth usage on average</li>
+<li>15% total physical memory usage for functions</li>
+</ul>
+<h1 id="class-discussion">Class Discussion</h1>
+<p>During our class discussion, there were some notable questions discussed:</p>
+<p>Normalized bandwidth usage, and what is the alternative?</p>
+<p>How much would the chip actually cost?</p>
+<ul>
+<li>This was not discussed in the paper, but it would need a significantly large cache and the ability ot run through said cache</li>
+</ul>
+<p>If you were Amazon and thinking of testing this, what would you test?</p>
+<ul>
+<li>Things that would cost the most money and ways to save money</li>
+<li>If workloads change over time, this could be a bad idea</li>
+<li>What is the baseline? Short-lived or long-lived? What percentage of the access needs to be short-lived to make this system work?</li>
+<li>Cloud provider wants to have as little waste as possible</li>
+</ul>
+<h1 id="takeaway">Takeaway</h1>
+<p>Memento delivers consistent performance and bandwidth improvements across languages and workloads with minimal hardware overhead, and its benefits extend beyond showrt-lived functions to serverless platforms and data-processing systems.</p>
+<h1 id="ai-disclosure">AI Disclosure</h1>
+<p>ChatGPT was used to summarize the paper, notes, and class discussion. The generative AI created a template which was then reviewed, edited and revised by the group.</p>
+
+  <footer>
+    
+    
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>

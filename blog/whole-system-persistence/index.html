@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: Whole-System Persistence</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Whole-System Persistence">
+<meta property="og:description"
+    content="Introduction
+Databases are oftentimes entirely stored in memory to achieve high throughput and low latency. When power fails however, recovery can last minutes for a single server or hours for a full cluster. Whole-System Persistence suggests an alternative solution. Since there is no distinction between persistent and volatile objects, you can restore the entire state using only in-memory objects. This post will go over a 2012 paper by two researchers at Microsoft Research, Cambridge on the afforementioned concept.
+Background
+Non-Volatile Main Memory (NVRAM)">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>Whole-System Persistence</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Darren Mai (Blogger),
+      
+        Isaac Lonergan (Presenter),
+      
+        Mykyta &quot;Nick&quot; Syntsia,
+      
+        Sam Shaaban,
+      
+        Shubhangi Pandey,
+      
+        Nat Rurka,
+      
+        Adam Bobich (Scribe)
+      
+      <span>
+    
+    <time datetime="2026-02-16">
+      February 16, 2026
+    </time>
+  </p>
+  <h1 id="introduction">Introduction</h1>
+<p>Databases are oftentimes entirely stored in memory to achieve high throughput and low latency. When power fails however, recovery can last minutes for a single server or hours for a full cluster. Whole-System Persistence suggests an alternative solution. Since there is no distinction between persistent and volatile objects, you can restore the entire state using only in-memory objects. This post will go over a 2012 paper by two researchers at Microsoft Research, Cambridge on the afforementioned concept.</p>
+<h1 id="background">Background</h1>
+<h2 id="non-volatile-main-memory-nvram">Non-Volatile Main Memory (NVRAM)</h2>
+<ul>
+<li>The paper assumes servers use NVDIMMs:
+<ul>
+<li>DRAM backed by flash and ultracapacitors.</li>
+<li>During normal operation, behaves exactly like DRAM.</li>
+<li>On power loss, stored capacitor energy copies DRAM contents to flash.</li>
+</ul>
+</li>
+<li>From the CPU’s perspective, memory simply survives crashes.</li>
+</ul>
+<h2 id="traditional-persistence-models">Traditional Persistence Models</h2>
+<p>Before this work, two dominant approaches existed:</p>
+<h3 id="block-based-persistence">Block-Based Persistence</h3>
+<ul>
+<li>Applications serialize objects to files or databases.</li>
+<li>Data duplication between memory and storage.</li>
+<li>System call overhead and explicit durability management.</li>
+</ul>
+<h3 id="persistent-heaps">Persistent Heaps</h3>
+<p>Persistent heaps are more efficient than block-based systems, but still incur heavy runtime cost due to synchronous cache flushes.</p>
+<ul>
+<li>Certain objects are marked persistent.</li>
+<li>Updates use transactional logging.</li>
+<li>Cache lines must be flushed explicitly to guarantee durability.</li>
+<li>Main overhead: synchronous cache flushes during execution.</li>
+</ul>
+<h2 id="the-bottleneck">The Bottleneck</h2>
+<p>On modern processors, writes sit in CPU caches. To make data durable, systems must explicitly flush cache lines to memory. These flushes are slow and serialize execution. In persistent heaps, they occur on every commit. This is the core performance problem the paper addresses.</p>
+<h1 id="whole-system-persistence-wsp">Whole-System Persistence (WSP)</h1>
+<h2 id="core-idea">Core Idea</h2>
+<ul>
+<li>All main memory is persistent.</li>
+<li>After a power failure:
+<ul>
+<li>Heap, stack, registers, and OS structures are restored.</li>
+</ul>
+</li>
+<li>Applications are unaware that a crash occurred.</li>
+<li>No persistent-object APIs or annotations required.</li>
+</ul>
+<h2 id="flush-on-commit-vs-flush-on-fail">Flush-on-Commit vs. Flush-on-Fail</h2>
+<h3 id="flush-on-commit">Flush-on-Commit</h3>
+<ul>
+<li>Every transaction:
+<ul>
+<li>Flush modified cache lines.</li>
+<li>Ensure ordering and durability.</li>
+</ul>
+</li>
+<li>High runtime overhead.</li>
+</ul>
+<h3 id="flush-on-fail-wsp">Flush-on-Fail (WSP)</h3>
+<ul>
+<li>During normal execution:
+<ul>
+<li>No flushing at all.</li>
+</ul>
+</li>
+<li>When power failure is detected:
+<ul>
+<li>CPU registers are saved.</li>
+<li>All caches are flushed.</li>
+<li>Processors halt.</li>
+<li>NVDIMMs copy memory contents to flash using residual PSU energy.</li>
+</ul>
+</li>
+</ul>
+<h3 id="key-insights">Key Insights</h3>
+<ul>
+<li>Standard power supplies retain 10–400 ms of residual energy after power loss.</li>
+<li>Flushing CPU state requires less than 5 ms.</li>
+<li>Persistence overhead moves completely off the critical execution path.</li>
+</ul>
+<h1 id="architecture-considerations">Architecture Considerations</h1>
+<h2 id="cpu-and-memory-state">CPU and Memory State</h2>
+<ul>
+<li>Registers and cache state must be flushed quickly.</li>
+<li>Hardware support ensures ordering and completeness.</li>
+<li>Memory image is preserved exactly at the moment of failure.</li>
+</ul>
+<h2 id="device-state">Device State</h2>
+<ul>
+<li>Devices (NICs, disks, GPUs) are harder to persist.</li>
+<li>Transitioning devices to safe states can exceed the residual energy window.</li>
+<li>Proposed solutions:
+<ul>
+<li>Reinitialize devices on resume.</li>
+<li>Use virtualization so VMs resume while the host OS handles device reset.</li>
+</ul>
+</li>
+</ul>
+<h2 id="failure-model">Failure Model</h2>
+<p>NVRAM is useful for recovery from crash failures such as power outages. It does not protect against:</p>
+<ul>
+<li>Software bugs</li>
+<li>Logical corruption</li>
+<li>Application-level errors</li>
+</ul>
+<h1 id="performance-results">Performance Results</h1>
+<h2 id="key-findings">Key Findings</h2>
+<ul>
+<li>1.6×–13× runtime speedup over persistent heaps.</li>
+<li>Up to 13× improvement for update-heavy workloads.</li>
+<li>Even read-heavy workloads benefit significantly.</li>
+<li>Time to save processor cache to NVRAM is under 5ms in every scenario.</li>
+</ul>
+<h1 id="what-this-means">What this means</h1>
+<p>The results show that getting rid of flush-on-commit yields large gains, and that flush-on-fail has better runtime performance.</p>
+<ul>
+<li>Positions persistence as a system-level property, not an application-level feature.</li>
+<li>Removes the volatile vs. persistent object distinction.</li>
+</ul>
+<h2 id="strengths">Strengths</h2>
+<ul>
+<li>Extremely simple programming model.</li>
+<li>Strong empirical validation (measured PSU energy and flush times).</li>
+<li>Backward compatibility.</li>
+</ul>
+<h2 id="weaknesses">Weaknesses</h2>
+<ul>
+<li>Device handling is complex and underdeveloped.</li>
+<li>Assumes full NVRAM deployment.</li>
+<li>Limited distributed-systems evaluation.</li>
+<li>Only addresses crash failures.</li>
+</ul>
+<h1 id="class-discussion">Class Discussion</h1>
+<ul>
+<li>We discussed the tradeoff between cost and benefit.
+<ul>
+<li>The paper argues that adding capacitors for NVDIMM-style backup is relatively inexpensive.</li>
+<li>However, the practical use case may be niche enough that large-scale adoption is still hard to justify.</li>
+</ul>
+</li>
+<li>We questioned whether the physical size of the added capacitor hardware could interfere with airflow and cooling.
+<ul>
+<li>The paper does not address potential ventilation or thermal constraints.</li>
+</ul>
+</li>
+<li>The paper was written in 2012, targeting DDR2/DDR3-era systems and older CPUs.
+<ul>
+<li>The authors measured that there was sufficient residual energy time to flush state.</li>
+<li>We questioned whether this assumption still holds today.
+<ul>
+<li>Modern servers contain far more memory.</li>
+<li>Flushing significantly larger memory footprints within the same time window may be more challenging.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>While the core idea remains elegant, its feasibility on today’s high-capacity systems may require updated hardware validation.</li>
+</ul>
+<h1 id="ai-disclosure">AI Disclosure</h1>
+<p>Used ChatGPT to summarize paper and get notes. Formatting for github was also done with ChatGPT.</p>
+
+  <footer>
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS&#x2F;ECE 4&#x2F;599: How modern AI workloads are bottlenecked by GPU hardware</title>
+
+  <link href="https://khale.github.io/mem-systems-w26/main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://khale.github.io/mem-systems-w26/rss.xml">
+  <link rel="icon" href="https://khale.github.io/mem-systems-w26/img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="https://khale.github.io/mem-systems-w26/img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How modern AI workloads are bottlenecked by GPU hardware">
+<meta property="og:description"
+    content="Introduction
+Transformer models have become the dominant architecture in modern natural language processing systems.
+As model sizes increase and inference workloads scale, understanding how efficiently hardware is utilized becomes increasingly important.
+Many transformer workloads are executed on GPUs because of their high compute throughput and large memory bandwidth.
+However, GPUs still face performance bottlenecks when executing transformer workloads.
+In particular, inference performance can be limited by either compute throughput or memory bandwidth depending on the workload configuration.
+Objective
+In this project, we analyze the hardware bottlenecks of transformer inference by benchmarking GPT-2 models under varying input conditions.
+We measure latency and throughput while systematically varying sequence length and batch size.
+Using these measurements, we evaluate how GPU resources are utilized and identify whether the workload becomes compute-bound or memory-bound.
+For this project, we evaluated the following models:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://khale.github.io/mem-systems-w26">CS&#x2F;ECE 4&#x2F;599</a>
+      </h1>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/extra-reading/">
+        Extra Resources
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/schedule/">
+        Schedule
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/syllabus/">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="https://khale.github.io/mem-systems-w26/project-ideas/">
+        Project Ideas
+      </a></p>
+      
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;lesson&#x2F;">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://github.com/khale/mem-systems-w26/discussions">Discussions</a></p>
+      
+      
+      <p><a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="https:&#x2F;&#x2F;khale.github.io&#x2F;mem-systems-w26&#x2F;blog&#x2F;">
+    The CS&#x2F;ECE 4&#x2F;599 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>How modern AI workloads are bottlenecked by GPU hardware</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Darren Mai,
+      
+        Dustin Bajarin-Freitas
+      
+      <span>
+    
+    <time datetime="2026-03-11">
+      March 11, 2026
+    </time>
+  </p>
+  <h1 id="introduction">Introduction</h1>
+<p>Transformer models have become the dominant architecture in modern natural language processing systems.
+As model sizes increase and inference workloads scale, understanding how efficiently hardware is utilized becomes increasingly important.
+Many transformer workloads are executed on GPUs because of their high compute throughput and large memory bandwidth.
+However, GPUs still face performance bottlenecks when executing transformer workloads.
+In particular, inference performance can be limited by either compute throughput or memory bandwidth depending on the workload configuration.</p>
+<h1 id="objective">Objective</h1>
+<p>In this project, we analyze the hardware bottlenecks of transformer inference by benchmarking GPT-2 models under varying input conditions.
+We measure latency and throughput while systematically varying sequence length and batch size.
+Using these measurements, we evaluate how GPU resources are utilized and identify whether the workload becomes compute-bound or memory-bound.<br>
+For this project, we evaluated the following models:</p>
+<ul>
+<li>GPT-2 Small (124M parameters)</li>
+<li>GPT-2 Medium (355M parameters) <br></li>
+</ul>
+<p>The larger GPT-2 Medium model contains nearly three times as many parameters as GPT-2 Small and performs significantly more computation per token.
+Comparing these two models allows us to examine how increasing model size affects hardware utilization.</p>
+<h2 id="methodology">Methodology</h2>
+<p>For the project, we made use of two tools known as Pytorch and Transformers.
+Both are python based open-source tools that allow for machine learning and research. With these tools, we created a benchmarking script that recorded several metrics. The script can be found in a repo linked at the bottom.</p>
+<h3 id="how-the-script-works">How the script works</h3>
+<p>To put it simply, for each configuration:<br></p>
+<ol>
+<li>The model was loaded into memory.<br></li>
+<li>Synthetic text input was tokenized.<br></li>
+<li>Batched inference runs were executed.<br></li>
+<li>Runtime performance metrics were recorded.
+<br><br>
+We varied parameters like:<br></li>
+</ol>
+<ul>
+<li>Sequence Length (16, 32, 64,128, 256 tokens)</li>
+<li>Batch Size (1, 2, 4, 8) <br></li>
+</ul>
+<p>Each configuration was executed multiple times and the average runtime was recorded.<br>
+Two metrics were used to evaluate performance:</p>
+<ul>
+<li>Latency (Average inference time per run).</li>
+<li>Throughput (Tokens processed per second). This was calculated in the script as Batch Size times Sequence Length, divided by latency.
+<br></li>
+</ul>
+<h1 id="evaluation">Evaluation</h1>
+<p>As seen in below, the benchmark results show that throughput generally increases with batch size and sequence length until it begins to plateau.
+For GPT-2 Small, throughput increases rapidly as batch size grows, eventually stabilizing around 700–800 tokens per second.
+This suggests that the hardware reaches a utilization limit where additional parallelism no longer improves performance.
+GPT-2 Medium shows a similar pattern but achieves significantly lower throughput due to its larger parameter count and higher computational cost.</p>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/how-modern-ai-workloads-are-bottlenecked-by-gpu-hardware/./Figure1.png" alt="Figure1" />
+<br>Increasing batch size significantly improves throughput at small batch sizes.
+Performance gains saturate at larger batch sizes.</p>
+<br>
+<p><img src="https://khale.github.io/mem-systems-w26/blog/how-modern-ai-workloads-are-bottlenecked-by-gpu-hardware/./Figure2.png" alt="Figure2" />
+<br>We can see here that latency increases as sequence length grows across all batch sizes</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>The observed throughput saturation shows that memory bandwidth, rather than compute capacity, limits inference performance under many configurations.
+This explains why throughput improvements diminish at larger batch sizes even though additional parallel work is available.</p>
+<h3 id="were-we-successful">Were we successful?</h3>
+<p>Although we were able to identify that the workload was primarily memory-bound, our evidence and data is somewhat lacking. There is much more that could be done to further reinforce our conclusion.</p>
+<h2 id="challenges-and-future-possibilities">Challenges and future possibilities</h2>
+<p>This experiment utilized AMD Radeon TM Graphics, which is an integrated GPU. Future experiments can be done on higher-end GPUs that make will have higher bottlenecks of performance.
+These higher-end GPUs can also make use of tools like ROCm and NVIDIA Nsight to collect data on kernel execution time and GPU utilization.
+With GPU hardware counters, we could also use a roofline-style analysis that would provide further insight into the AI performance.</p>
+<h2 id="repo">Repo</h2>
+<p>The scripts used to generate the data collected in this project can be found at https://github.com/IMPULS3D/AI-Hardware-Bottleneck-scripts.
+Some early results of the experiments can also be found in the repo.</p>
+<h2 id="division-of-responsibilities">Division of responsibilities</h2>
+<ul>
+<li>Darren: Created slides and presented. Wrote and coded the script as described in the blog. Collected the data.</li>
+<li>Dustin: Created slides and presented. Organized data and wrote a script.</li>
+</ul>
+<h2 id="ai-disclosure">AI Disclosure</h2>
+<p>ChatGPT was used to aid in formatting blog.</p>
+
+  <footer>
+    
+    <p>This is the course blog for CS/ECE 4/599, a research-focused course on memory systems in the School of EECS at Oregon State.
+You can subscribe to <a rel="external" href="https://github.com/khale/mem-systems-w26/blog">posts on the blog</a> with <a rel="external" href="https://github.com/khale/mem-systems-w26/rss.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.oregonstate.edu">Oregon State University</a>
+    &mdash;
+    <a href="https://engineering.oregonstate.edu/EECS">School of EECS</a></p>
+  </footer>
+</body>
+</html>
